@@ -1,18 +1,22 @@
-
 var express = require('express');
 var app = require('express')();
 var http = require('http').Server(app);
 var io = require('socket.io')(http);
+var request = require('request');
 
 // var snakeDict = {};
 
-app.get('/game', function(req, res){
+app.get('/game', function(req, res) {
   console.log(req.param('session_id'));
-  if(snakes[req.param('session_id')])
-  res.send("session exists");
-  else {
-    res.cookie('session_id', req.param('session_id'));
-    res.sendFile(__dirname + '/index.html');
+  if (req.param('session_id')) {
+    if (snakes[req.param('session_id')])
+      res.send("session exists");
+    else {
+      res.cookie('session_id', req.param('session_id'));
+      res.sendFile(__dirname + '/index.html');
+    }
+  } else {
+    res.status(400).send('Bad login');
   }
 });
 
@@ -26,9 +30,9 @@ var colorList = [
 ];
 
 
-io.on('connection', function(socket){
+io.on('connection', function(socket) {
 
-  socket.on('playerConnected', function (sessionId){
+  socket.on('playerConnected', function(sessionId) {
     console.log("playerConnected: " + sessionId);
 
     console.log("snake id: " + sessionId);
@@ -36,272 +40,180 @@ io.on('connection', function(socket){
     var col = colorList.pop();
 
     snakes[sessionId] = {
-      id:sessionId,
-      position: {x: 10, y: 10},
-      posArray:[
-        {x: 10, y: 20},
-        {x: 10, y: 19},
-        {x: 10, y: 18},
-        {x: 10, y: 17},
-        {x: 10, y: 16}
+      id: sessionId,
+      position: { x: 10, y: 10 },
+      posArray: [
+        { x: 10, y: 20 },
+        { x: 10, y: 19 },
+        { x: 10, y: 18 },
+        { x: 10, y: 17 },
+        { x: 10, y: 16 }
       ],
       direction: 1,
       eating: 0,
       food: null,
       left: 0,
-      color: col
+      color: col,
+      score: 0,
+      time: null
     };
 
-    socket.on('direction', function(data){
+    socket.on('direction', function(data) {
       //  snakes[data.snakeInd].direction = data.dir;
 
-      if(!snakes[sessionId])
-      {
+      if (!snakes[sessionId]) {
         snakes[sessionId] = {
-          id:sessionId,
-          position: {x: 10, y: 10},
-          posArray:[
-            {x: 10, y: 20},
-            {x: 10, y: 19},
-            {x: 10, y: 18},
-            {x: 10, y: 17},
-            {x: 10, y: 16}
+          id: sessionId,
+          position: { x: 10, y: 10 },
+          posArray: [
+            { x: 10, y: 20 },
+            { x: 10, y: 19 },
+            { x: 10, y: 18 },
+            { x: 10, y: 17 },
+            { x: 10, y: 16 }
           ],
           direction: 1,
           eating: 0,
           food: null,
           left: 0,
-          color: colorList.pop()
+          color: colorList.pop(),
+          score: 0,
+          time: null
         };
       }
 
       var currDir = snakes[data.snakeId].direction;
-      // console.log("currDir: " + currDir);
-      if(currDir != data.dir){
-        if(Math.abs(currDir - data.dir) != 2){
-          // direction change
+      if (currDir != data.dir) {
+        if (Math.abs(currDir - data.dir) != 2) {
           snakes[data.snakeId].direction = data.dir;
-        //  console.log("playerSnakeIndex");
-        //  console.log(playerSnakeIndex);
-         //
-        //  console.log("code");
-        //  console.log(code);
         }
       }
 
     });
 
-    socket.on('collisionWithSnake', function (data){
-      //id: snake.id, pos: posItem, posIndex: i
+    socket.on('collisionWithSnake', function(data) {
       colorList.push(snakes[sessionId].color);
 
-      delete snakes[sessionId];
-      console.log("collisionWithSnake");
-      console.log(data);
+      // call service
+      SendScore(sessionId, data.score, data.time);
 
+      delete snakes[sessionId];
       socket.emit('onKilled', {});
     });
 
-    socket.on('collisionWithWall', function(data){
+    socket.on('collisionWithWall', function(data) {
       colorList.push(snakes[sessionId].color);
+      SendScore(sessionId, data.score, data.time);
       delete snakes[sessionId];
-      console.log("collisionWithWall");
-      console.log(data);
       socket.emit('onKilled', {});
     });
 
-    socket.on('collisionWithSelf', function(data){
+    socket.on('collisionWithSelf', function(data) {
 
     });
 
-    socket.on('disconnect', function(){
-      if(snakes[sessionId])
-      {colorList.push(snakes[sessionId].color);
-      delete snakes[sessionId];}
-
-      // if(snakes.length == 1)
-      // snakes = {};
-      // else {
-      //   snakes = snakes.splice(snakeDict[sessionId], 1);
-      // }
-
-      // snakes[snakeInd].left = 1;
-
-      console.log("snakes after disconnect");
-      console.log(snakes);
-      // if(snakes.length > 0)
-      // {
-      //   for(var i = snakeInd; i<snakes.length; i++){
-      //     snakes[i].
-      //   }
-      // }
-
-      console.log('user disconnected of id: ' + sessionId);
+    socket.on('disconnect', function() {
+      if (snakes[sessionId]) {
+        colorList.push(snakes[sessionId].color);
+        delete snakes[sessionId];
+      }
       io.emit('onSnakeDelete', sessionId);
     });
 
-    socket.emit('init', {canvasW: canvasWidth, canvasH: canvasHeight, foodPos: foodPosition, snakesList: snakes, sessionid: sessionId});
+    socket.emit('init', { canvasW: canvasWidth, canvasH: canvasHeight, foodPos: foodPosition, snakesList: snakes, sessionid: sessionId });
   });
 
   console.log("connection");
   socket.emit('connectPlayer', {});
 });
 
-http.listen(3000, function(){
+http.listen(3000, function() {
   console.log('listening on *:3000');
 });
 
 var snakes = {};
-
-var foodPosition={x: 30, y: 8};
 var canvasWidth = 800;
 var canvasHeight = 600;
 var cellWidth = 10;
 var cellHeight = 10;
+var wallLeft = 1;
+var wallRight = 79;
+var wallTop = 1;
+var wallBottom = 59;
 
-// var wallRect
-
-function updateSnakes(){
-// console.log(snakes.length);
-// var headList
-for (var key in snakes) {
-  // console.log(key);
-  if (snakes.hasOwnProperty(key)) {
-    var snake = snakes[key];
-    // console.log(snake);
-    if(snake.eating == 1)
-  	{
-  		// console.log("eating food");
-  		// console.log("snake food: ");
-
-  		var tail = snake.posArray[snake.posArray.length - 1];
-  		// console.log(snake.food);
-  		// console.log("tail:");
-  		// console.log(tail);
-  		if(tail.x == snake.food.x && tail.y == snake.food.y)
-  		{
-  			snake.eating = 0;
-  			// console.log("tail pos = food");
-  		}
-  		else {
-  			snake.posArray.pop();
-  			// console.log("tail pos != food");
-  		}
-  	}
-  	else {
-  		snake.posArray.pop();
-  	}
-
-  	var dir = snake.direction;
-  	var head = {x: snake.posArray[0].x, y: snake.posArray[0].y};
-
-  	if(dir == 0)
-  	head.x--;
-  	if(dir == 2)
-  	head.x++;
-  	if(dir == 1)
-  	head.y--;
-  	if(dir == 3)
-  	head.y++;
-
-  	snake.posArray.unshift(head);
-  	// console.log("head");
-  	// console.log(head);
-  	// console.log("foodPosition");
-  	// console.log(foodPosition);
-  	if(head.x == foodPosition.x && head.y == foodPosition.y){
-  	// console.log("Food ate");
-
-  	snake.eating = 1;
-  	snake.food = {x: foodPosition.x, y: foodPosition.y};
-  	// snakes[0].food.y = foodPosition.y;
-  	// remove foodPosition
-  	// foodPosition = null;
-
-    // check for collision
-
-
-  	createFood();
-  }
-    // console.log(key + " -> " + p[key]);
-  }
+var foodPosition = {
+  x: wallLeft + Math.random() * ((canvasWidth / cellWidth) - (wallRight / cellWidth) - ((wallLeft / cellWidth) * 2)) | 0,
+  y: 1 + Math.random() * ((canvasHeight / cellHeight) - (wallBottom / cellHeight) - ((wallTop / cellHeight) * 2)) | 0
 }
 
-io.emit('updateUI', snakes);
+// var foodPosition = {};
 
-// snakes.forEach(function(snake){
-//   if(snake.eating == 1)
-// 	{
-// 		// console.log("eating food");
-// 		// console.log("snake food: ");
-//
-// 		var tail = snake.posArray[snake.posArray.length - 1];
-// 		// console.log(snake.food);
-// 		// console.log("tail:");
-// 		// console.log(tail);
-// 		if(tail.x == snake.food.x && tail.y == snake.food.y)
-// 		{
-// 			snake.eating = 0;
-// 			// console.log("tail pos = food");
-// 		}
-// 		else {
-// 			snake.posArray.pop();
-// 			// console.log("tail pos != food");
-// 		}
-// 	}
-// 	else {
-// 		snake.posArray.pop();
-// 	}
-//
-// 	var dir = snake.direction;
-// 	var head = {x: snake.posArray[0].x, y: snake.posArray[0].y};
-//
-// 	if(dir == 0)
-// 	head.x--;
-// 	if(dir == 2)
-// 	head.x++;
-// 	if(dir == 1)
-// 	head.y--;
-// 	if(dir == 3)
-// 	head.y++;
-//
-// 	snake.posArray.unshift(head);
-// 	// console.log("head");
-// 	// console.log(head);
-// 	// console.log("foodPosition");
-// 	// console.log(foodPosition);
-// 	if(head.x == foodPosition.x && head.y == foodPosition.y){
-// 	// console.log("Food ate");
-//
-// 	snake.eating = 1;
-// 	snake.food = {x: foodPosition.x, y: foodPosition.y};
-// 	// snakes[0].food.y = foodPosition.y;
-// 	// remove foodPosition
-// 	// foodPosition = null;
-// 	createFood();
-// }
-//
-// });
+var incValue = 1;
+
+function updateSnakes() {
+  for (var key in snakes) {
+    if (snakes.hasOwnProperty(key)) {
+      var snake = snakes[key];
+      if (snake.eating == 1) {
+        var tail = snake.posArray[snake.posArray.length - 1];
+        if (tail.x == snake.food.x && tail.y == snake.food.y)
+          snake.eating = 0;
+        else
+          snake.posArray.pop();
+      } else
+        snake.posArray.pop();
+
+      var dir = snake.direction;
+      var head = { x: snake.posArray[0].x, y: snake.posArray[0].y };
+
+      if (dir == 0)
+        head.x -= incValue;
+      if (dir == 2)
+        head.x += incValue;
+      if (dir == 1)
+        head.y -= incValue;
+      if (dir == 3)
+        head.y += incValue;
+
+      snake.posArray.unshift(head);
+      if (head.x == foodPosition.x && head.y == foodPosition.y) {
+        snake.eating = 1;
+        snake.food = { x: foodPosition.x, y: foodPosition.y };
+        createFood();
+        // ate food
+        snakes[snake.id].score += 10;
+        io.emit('ateFood', { snakeId: snake.id, score: snakes[snake.id].score });
+      }
+    }
+  }
+  io.emit('updateUI', snakes);
 }
 
-function createFood(){
+function SendScore(userId, score, time) {
+  request.post('http://10.1.18.234/hisss/createscore.php', {
+    form: {
+      user_id: userId,
+      score: score,
+      time: time / 1000
+    }
+  })
 
+  // var xhttp = new XMLHttpRequest();
+  // xhttp.open("POST", "10.1.18.234/hisss/createscore.php", false);
+  // xhttp.setRequestHeader("Content-type", "application/json");
+  // var params = "score=" + score + "&time=" + time + "&user_id=" + userId;
+  // xhttp.send(params);
+  // var response = JSON.parse(xhttp.responseText);
+}
+
+function createFood() {
   var x, y;
-
-
-
-	x = Math.random() * (canvasWidth/cellWidth)|0;
-	y = Math.random() * (canvasHeight/cellHeight)|0;
-
+  x = 1 + Math.random() * ((canvasWidth / cellWidth) - 3) | 0;
+  y = 1 + Math.random() * ((canvasHeight / cellHeight) - 3) | 0;
   foodPosition.x = x;
   foodPosition.y = y;
-
-  // var x, y;
-	// x = Math.random() * 100|0;
-	// y = Math.random() * 100|0;
-
-  io.emit('createFood', {x:x, y:y});
-
+  io.emit('createFood', { x: x, y: y });
 }
+
 var tickValue = 50;
 setInterval(updateSnakes, tickValue);

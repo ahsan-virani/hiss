@@ -4,11 +4,11 @@
     <title>Socket.IO chat</title>
     <style>
       body {
-				background:#9c9;
+				background:#eee;
 				text-align:center;
 			}
 			canvas {
-				background:#ffffff;
+				background:#eee;
 				-webkit-box-shadow:0 0 20px #000;
 				-moz-box-shadow: 0 0 20px #000;
 				box-shadow:0 0 20px #000;
@@ -19,6 +19,13 @@
     </style>
   </head>
   <body>
+    <canvas id="canvasdiv"></canvas>
+    <div>
+      Score
+    </div>
+    <div id="score">
+      254
+    </div>
     <script src="/socket.io/socket.io.js"></script>
     <script src="/static/game.js"></script>
   </body>

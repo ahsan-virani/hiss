@@ -4,6 +4,7 @@
   "description": "mulitplayer snake",
   "dependencies": {
     "express": "^4.15.2",
+    "request": "^2.81.0",
     "socket.io": "^1.7.3"
   }
 }
